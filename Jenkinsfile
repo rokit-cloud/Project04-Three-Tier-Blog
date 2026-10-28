@@ -7,6 +7,10 @@ pipeline {
         disableConcurrentBuilds()
     }
 
+    environment {
+        NEXUS_REGISTRY = 'host.docker.internal:8082'
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -47,24 +51,67 @@ pipeline {
 
         stage('Trivy Frontend Scan') {
             steps {
-                sh 'trivy image --severity HIGH,CRITICAL --exit-code 1 blogreact-frontend:ci'
+                sh '''
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        blogreact-frontend:ci
+                '''
             }
         }
 
         stage('Trivy Backend Scan') {
             steps {
-                sh 'trivy image --severity HIGH,CRITICAL --exit-code 1 blogreact-backend:ci'
+                sh '''
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        blogreact-backend:ci
+                '''
+            }
+        }
+
+        stage('Push Images to Nexus') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-docker-creds',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+
+                        echo "$NEXUS_PASSWORD" | docker login "$NEXUS_REGISTRY" \
+                            --username "$NEXUS_USER" \
+                            --password-stdin
+
+                        docker tag blogreact-frontend:ci \
+                            "$NEXUS_REGISTRY/blogreact-frontend:ci"
+
+                        docker tag blogreact-backend:ci \
+                            "$NEXUS_REGISTRY/blogreact-backend:ci"
+
+                        docker push "$NEXUS_REGISTRY/blogreact-frontend:ci"
+                        docker push "$NEXUS_REGISTRY/blogreact-backend:ci"
+
+                        docker logout "$NEXUS_REGISTRY"
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'CI pipeline completed successfully.'
+            echo 'CI pipeline and Nexus image publishing completed successfully.'
         }
+
         failure {
             echo 'Pipeline failed. Check the stage logs.'
         }
+
         always {
             echo 'Pipeline execution finished.'
         }
