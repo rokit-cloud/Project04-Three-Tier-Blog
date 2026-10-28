@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 
 # Build output
@@ -20,3 +20,9 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+k8s/mysql-secret.yaml
+k8s/*secret*.yaml
+
+.scannerwork/
+Jenkinsfile.backup
