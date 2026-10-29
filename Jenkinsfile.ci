@@ -49,14 +49,14 @@ pipeline {
                     set -eu
                     echo "Running backend tests and generating coverage..."
 
-                    rm -rf backend/coverage
+                    # Coverage cleanup happens inside Docker as root.
                     mkdir -p backend/coverage
 
                     docker run --rm \
                         -v "$WORKSPACE/backend:/app" \
                         -w /app \
                         node:22-alpine \
-                        sh -lc 'npm ci && npm test -- --coverage'
+                        sh -lc 'rm -rf coverage && npm ci && npm test -- --coverage'
 
                     test -s backend/coverage/lcov.info
                     echo "Coverage report generated successfully."
