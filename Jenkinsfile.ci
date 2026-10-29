@@ -64,6 +64,26 @@ pipeline {
             }
         }
 
+        stage('Frontend Tests and Coverage') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "Running frontend tests and generating coverage..."
+
+                    mkdir -p frontend/coverage
+
+                    docker run --rm \
+                        -v "$WORKSPACE/frontend:/app" \
+                        -w /app \
+                        node:22-alpine \
+                        sh -lc 'rm -rf coverage && npm ci && npm test -- --coverage'
+
+                    test -s frontend/coverage/lcov.info
+                    echo "Frontend coverage report generated successfully."
+                '''
+            }
+        }
+
         stage('SonarQube Code Analysis') {
             steps {
                 script {
@@ -73,11 +93,12 @@ pipeline {
                         sh """
                             set -eu
                             test -s backend/coverage/lcov.info
+                            test -s frontend/coverage/lcov.info
 
                             '${scannerHome}/bin/sonar-scanner' \
                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                               -Dsonar.projectName=${SONAR_PROJECT_KEY} \
-                              -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info
+                              -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/coverage/lcov.info
                         """
                     }
                 }
