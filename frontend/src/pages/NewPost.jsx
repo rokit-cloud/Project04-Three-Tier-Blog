@@ -34,20 +34,22 @@ export default function NewPost() {
       <p className="sub">Write it like a field note — specific, and a little unpolished is fine.</p>
       <form onSubmit={submit}>
         <div className="field">
-          <label>Title</label>
-          <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <label htmlFor="post-title">Title</label>
+          <input id="post-title" name="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </div>
         <div className="field">
-          <label>Tag</label>
-          <input value={form.tag} onChange={(e) => setForm({ ...form, tag: e.target.value })} />
+          <label htmlFor="post-tag">Tag</label>
+          <input id="post-tag" name="tag" value={form.tag} onChange={(e) => setForm({ ...form, tag: e.target.value })} />
         </div>
         <div className="field">
-          <label>Excerpt (optional)</label>
-          <input value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} />
+          <label htmlFor="post-excerpt">Excerpt (optional)</label>
+          <input id="post-excerpt" name="excerpt" value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} />
         </div>
         <div className="field">
-          <label>Body</label>
+          <label htmlFor="post-body">Body</label>
           <textarea
+            id="post-body"
+            name="body"
             required
             minLength={20}
             value={form.body}
@@ -55,9 +57,9 @@ export default function NewPost() {
             placeholder="Start with the incident, the decision, or the number that surprised you…"
           />
         </div>
-        {error && <div className="form-error">{error}</div>}
+        {error && <div className="form-error" role="alert">{error}</div>}
         <div className="form-actions">
-          <button className="btn btn-solid" disabled={loading}>
+          <button type="submit" className="btn btn-solid" disabled={loading}>
             {loading ? 'Publishing…' : 'Publish entry'}
           </button>
         </div>

@@ -12,12 +12,40 @@ export default function PostDetail() {
   const [comment, setComment] = useState('');
   const [posting, setPosting] = useState(false);
 
-  const load = () => api.getPost(slug).then(setPost).catch((err) => setError(err.message));
-
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+
+    const load = async () => {
+      try {
+        const result = await api.getPost(slug);
+        if (active) {
+          setPost(result);
+          setError('');
+        }
+      } catch (err) {
+        if (active) {
+          setError(err.message);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
   }, [slug]);
+
+  const reloadPost = async () => {
+    try {
+      const result = await api.getPost(slug);
+      setPost(result);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
 
   const submitComment = async (e) => {
     e.preventDefault();
@@ -26,7 +54,7 @@ export default function PostDetail() {
     try {
       await api.addComment(slug, comment);
       setComment('');
-      await load();
+      await reloadPost();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -72,8 +100,10 @@ export default function PostDetail() {
           {user ? (
             <form onSubmit={submitComment} style={{ marginTop: 24 }}>
               <div className="field">
-                <label>Add a note</label>
+                <label htmlFor="comment-body">Add a note</label>
                 <textarea
+                  id="comment-body"
+                  name="comment"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   rows={3}
@@ -81,7 +111,7 @@ export default function PostDetail() {
                 />
               </div>
               <div className="form-actions">
-                <button className="btn btn-solid" disabled={posting}>
+                <button type="submit" className="btn btn-solid" disabled={posting}>
                   {posting ? 'Posting…' : 'Post note'}
                 </button>
               </div>

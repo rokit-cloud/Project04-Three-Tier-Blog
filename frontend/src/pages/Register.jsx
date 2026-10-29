@@ -29,12 +29,14 @@ export default function Register() {
       <p className="sub">Get a byline and a place to leave notes.</p>
       <form onSubmit={submit}>
         <div className="field">
-          <label>Name</label>
-          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <label htmlFor="register-name">Name</label>
+          <input id="register-name" name="name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </div>
         <div className="field">
-          <label>Email</label>
+          <label htmlFor="register-email">Email</label>
           <input
+            id="register-email"
+            name="email"
             type="email"
             required
             value={form.email}
@@ -42,8 +44,10 @@ export default function Register() {
           />
         </div>
         <div className="field">
-          <label>Password</label>
+          <label htmlFor="register-password">Password</label>
           <input
+            id="register-password"
+            name="password"
             type="password"
             required
             minLength={8}
@@ -51,9 +55,9 @@ export default function Register() {
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
         </div>
-        {error && <div className="form-error">{error}</div>}
+        {error && <div className="form-error" role="alert">{error}</div>}
         <div className="form-actions">
-          <button className="btn btn-solid" disabled={loading}>
+          <button type="submit" className="btn btn-solid" disabled={loading}>
             {loading ? 'Creating…' : 'Create account'}
           </button>
           <Link to="/login" style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
