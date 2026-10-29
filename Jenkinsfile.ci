@@ -50,6 +50,23 @@ pipeline {
             }
         }
 
+        stage('Backend Tests and Coverage') {
+            steps {
+                sh '''
+                    set -eu
+                    rm -rf coverage
+                    mkdir -p coverage
+                    docker build --target test --output type=local,dest=coverage backend
+                    test -f coverage/app/coverage/lcov.info
+                    mkdir -p backend/coverage
+                    cp coverage/app/coverage/lcov.info backend/coverage/lcov.info
+                    sed -i 's#^SF:#SF:backend/#' backend/coverage/lcov.info
+                    test -s backend/coverage/lcov.info
+                    echo "Backend coverage report generated successfully."
+                '''
+            }
+        }
+
         stage('SonarQube Code Analysis') {
             steps {
                 script {
@@ -58,10 +75,10 @@ pipeline {
                     withSonarQubeEnv('SonarQube') {
                         sh """
                             set -eu
-
                             "${scannerHome}/bin/sonar-scanner" \
                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                              -Dsonar.projectName=${SONAR_PROJECT_KEY}
+                              -Dsonar.projectName=${SONAR_PROJECT_KEY} \
+                              -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info
                         """
                     }
                 }
