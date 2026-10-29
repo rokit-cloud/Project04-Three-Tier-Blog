@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout and Validate') {
+            steps {
+                checkout scm
+                sh '''
+                    set -eu
+                    test -f docker-compose.yml
+                    test -d frontend
+                    test -d backend
+                    test -f sonar-project.properties
+                    echo "Project files verified."
+                '''
+            }
+        }
+
+        stage('Build Frontend Image') {
+            steps {
+                sh 'docker build -t blogreact-frontend:ci frontend'
+            }
+        }
+
+        stage('Build Backend Image') {
+            steps {
+                sh 'docker build -t blogreact-backend:ci backend'
+            }
+        }
+
+        stage('Trivy Frontend Scan') {
+            steps {
+                sh '/usr/local/bin/trivy image --severity HIGH,CRITICAL --exit-code 1 blogreact-frontend:ci'
+            }
+        }
+
+        stage('Trivy Backend Scan') {
+            steps {
+                sh '/usr/local/bin/trivy image --severity HIGH,CRITICAL --exit-code 1 blogreact-backend:ci'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'CI pipeline completed: validation, Docker builds and Trivy scans passed.'
+        }
+        failure {
+            echo 'CI pipeline failed. Review the stage logs.'
+        }
+        always {
+            echo 'CI pipeline execution finished.'
+        }
+    }
+}
