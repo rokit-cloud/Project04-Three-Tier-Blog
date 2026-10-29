@@ -1,12 +1,10 @@
-
 pipeline {
     agent any
 
     options {
         timestamps()
-        disableConcurrentBuilds()
-        skipDefaultCheckout(true)
         timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
     }
 
     environment {
@@ -16,23 +14,19 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout and Validate') {
             steps {
                 checkout scm
 
                 sh '''
                     set -eu
-
-                    echo "Checking project files..."
-
                     test -f docker-compose.yml
                     test -d frontend
                     test -d backend
                     test -f sonar-project.properties
                     test -f frontend/Dockerfile
                     test -f backend/Dockerfile
-
+                    test -f backend/package.json
                     echo "Project files verified successfully."
                 '''
             }
@@ -42,7 +36,6 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-
                     docker --version
                     docker info >/dev/null
                     echo "Docker is available."
@@ -54,15 +47,19 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    rm -rf coverage
-                    mkdir -p coverage
-                    docker build --target test --output type=local,dest=coverage backend
-                    test -f coverage/app/coverage/lcov.info
+                    echo "Running backend tests and generating coverage..."
+
+                    rm -rf backend/coverage
                     mkdir -p backend/coverage
-                    cp coverage/app/coverage/lcov.info backend/coverage/lcov.info
-                    sed -i 's#^SF:#SF:backend/#' backend/coverage/lcov.info
+
+                    docker run --rm \
+                        -v "$WORKSPACE/backend:/app" \
+                        -w /app \
+                        node:22-alpine \
+                        sh -lc 'npm ci && npm test -- --coverage'
+
                     test -s backend/coverage/lcov.info
-                    echo "Backend coverage report generated successfully."
+                    echo "Coverage report generated successfully."
                 '''
             }
         }
@@ -75,7 +72,9 @@ pipeline {
                     withSonarQubeEnv('SonarQube') {
                         sh """
                             set -eu
-                            "${scannerHome}/bin/sonar-scanner" \
+                            test -s backend/coverage/lcov.info
+
+                            '${scannerHome}/bin/sonar-scanner' \
                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                               -Dsonar.projectName=${SONAR_PROJECT_KEY} \
                               -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info
@@ -89,11 +88,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-
-                    docker build \
-                      --tag "$FRONTEND_IMAGE" \
-                      frontend
-
+                    docker build --tag "$FRONTEND_IMAGE" frontend
                     echo "Frontend image built successfully."
                 '''
             }
@@ -103,11 +98,7 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-
-                    docker build \
-                      --tag "$BACKEND_IMAGE" \
-                      backend
-
+                    docker build --tag "$BACKEND_IMAGE" backend
                     echo "Backend image built successfully."
                 '''
             }
@@ -117,12 +108,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-
-                    /usr/local/bin/trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      "$FRONTEND_IMAGE"
-
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        "$FRONTEND_IMAGE"
                     echo "Frontend security scan passed."
                 '''
             }
@@ -132,12 +121,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-
-                    /usr/local/bin/trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      "$BACKEND_IMAGE"
-
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        "$BACKEND_IMAGE"
                     echo "Backend security scan passed."
                 '''
             }
@@ -146,11 +133,15 @@ pipeline {
 
     post {
         success {
-            echo 'SUCCESS: Validation, SonarQube analysis, Docker builds and Trivy scans completed.'
+            echo 'SUCCESS: Tests, coverage, SonarQube analysis, Docker builds and Trivy scans completed.'
         }
 
         failure {
-            echo 'FAILURE: Check the first ERROR in Console Output.'
+            echo 'FAILED: Check the first failed stage in Console Output.'
+        }
+
+        aborted {
+            echo 'Build was aborted before all stages completed.'
         }
 
         always {
