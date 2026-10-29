@@ -21,6 +21,22 @@ pipeline {
             }
         }
 
+        stage('SonarQube Code Analysis') {
+            steps {
+                script {
+                    def scannerHome = tool 'SonarScanner'
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            set -eu
+                            "\${scannerHome}/bin/sonar-scanner" \
+                              -Dsonar.projectKey=Project04-Three-Tier-Blog \
+                              -Dsonar.projectName=Project04-Three-Tier-Blog
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Build Frontend Image') {
             steps {
                 sh 'docker build -t blogreact-frontend:ci frontend'
@@ -48,7 +64,7 @@ pipeline {
 
     post {
         success {
-            echo 'CI pipeline completed: validation, Docker builds and Trivy scans passed.'
+            echo 'CI pipeline completed: validation, SonarQube analysis, Docker builds and Trivy scans passed.'
         }
         failure {
             echo 'CI pipeline failed. Review the stage logs.'
