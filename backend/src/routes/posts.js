@@ -8,8 +8,8 @@ const router = express.Router();
 // GET /api/posts?page=1&limit=9&tag=devops&search=eks
 router.get('/', async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(parseInt(req.query.limit) || 9, 50);
+    const page = Math.max(Number.parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Number.parseInt(req.query.limit) || 9, 50);
     const offset = (page - 1) * limit;
     const { tag, search } = req.query;
 
