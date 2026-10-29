@@ -85,6 +85,8 @@ export default function PostDetail() {
         <div className="article-body">{post.body}</div>
 
         <section className="comments">
+            {error && <p role="alert">{error}</p>}
+
           <h2 style={{ fontSize: 20, marginBottom: 20 }}>
             Notes in the margin ({post.comments.length})
           </h2>
