@@ -13,6 +13,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError('');
+
     try {
       await login(form.email, form.password);
       navigate('/');
@@ -27,28 +28,36 @@ export default function Login() {
     <div className="form-shell">
       <h1>Sign in</h1>
       <p className="sub">Pick up where you left off in the margins.</p>
+
       <form onSubmit={submit}>
         <div className="field">
-          <label>Email</label>
+          <label htmlFor="email">Email</label>
           <input
+            id="email"
+            name="email"
             type="email"
             required
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
         </div>
+
         <div className="field">
-          <label>Password</label>
+          <label htmlFor="password">Password</label>
           <input
+            id="password"
+            name="password"
             type="password"
             required
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
         </div>
-        {error && <div className="form-error">{error}</div>}
+
+        {error && <div className="form-error" role="alert">{error}</div>}
+
         <div className="form-actions">
-          <button className="btn btn-solid" disabled={loading}>
+          <button type="submit" className="btn btn-solid" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
           <Link to="/register" style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
