@@ -76,7 +76,7 @@ pipeline {
                         -v "$WORKSPACE/frontend:/app" \
                         -w /app \
                         node:22-alpine \
-                        sh -lc 'rm -rf coverage && npm ci && npm test -- --coverage'
+                        sh -lc 'rm -rf coverage && npm ci && npm test'
 
                     test -s frontend/coverage/lcov.info
                     echo "Frontend coverage report generated successfully."
