@@ -127,3 +127,25 @@ The UI ("Marginal") is a custom-built design system, not a component-library
 default: a paper-grain background, Fraunces/Inter/IBM Plex Mono type pairing,
 moss-and-rust accent ink, and a signature **reading-spine** scroll-progress
 ruler on article pages. All tokens live in `frontend/src/index.css`.
+
+## Design System — Marginal
+
+Marginal uses a custom-built design system rather than a default component-library theme.
+
+### Visual Identity
+- **Background:** Paper-grain texture
+- **Typography:** Fraunces, Inter, and IBM Plex Mono
+- **Accent colors:** Moss and rust
+- **Signature interaction:** A reading-spine scroll-progress ruler on article pages
+- **Design tokens:** Centralized in `frontend/src/index.css`
+
+The design system gives Marginal its editorial reading experience and consistent visual identity.
+
+## Deployment Configuration Notes
+
+The current Kubernetes configuration uses:
+- One frontend replica
+- One backend replica
+- MySQL StatefulSet with a 5Gi `gp3` persistent volume
+- Reduced frontend memory request for the available worker capacity
+

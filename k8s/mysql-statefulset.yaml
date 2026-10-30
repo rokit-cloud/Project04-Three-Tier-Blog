@@ -81,6 +81,7 @@ spec:
     - metadata:
         name: mysql-storage
       spec:
+        storageClassName: gp3
         accessModes:
           - ReadWriteOnce
         resources:
