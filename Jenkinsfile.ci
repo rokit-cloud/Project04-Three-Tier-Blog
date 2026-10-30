@@ -3,13 +3,19 @@ pipeline {
 
     options {
         timestamps()
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 45, unit: 'MINUTES')
         disableConcurrentBuilds()
     }
 
     environment {
-        FRONTEND_IMAGE = 'blogreact-frontend:ci'
-        BACKEND_IMAGE  = 'blogreact-backend:ci'
+        AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = '535066802851'
+        EKS_CLUSTER = 'project04-eks'
+        ECR_REGISTRY = '535066802851.dkr.ecr.ap-south-1.amazonaws.com'
+
+        FRONTEND_IMAGE = 'blogreact-frontend'
+        BACKEND_IMAGE = 'blogreact-backend'
+
         SONAR_PROJECT_KEY = 'Project04-Three-Tier-Blog'
     }
 
@@ -17,7 +23,6 @@ pipeline {
         stage('Checkout and Validate') {
             steps {
                 checkout scm
-
                 sh '''
                     set -eu
                     test -f docker-compose.yml
@@ -27,7 +32,7 @@ pipeline {
                     test -f frontend/Dockerfile
                     test -f backend/Dockerfile
                     test -f backend/package.json
-                    echo "Project files verified successfully."
+                    echo "Project files verified."
                 '''
             }
         }
@@ -47,19 +52,12 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    echo "Running backend tests and generating coverage..."
-
-                    # Coverage cleanup happens inside Docker as root.
                     mkdir -p backend/coverage
-
                     docker run --rm \
-                        -v "$WORKSPACE/backend:/app" \
-                        -w /app \
-                        node:22-alpine \
-                        sh -lc 'rm -rf coverage && npm ci && npm test -- --coverage'
-
+                      -v "$WORKSPACE/backend:/app" \
+                      -w /app node:22-alpine \
+                      sh -lc 'rm -rf coverage && npm ci && npm test -- --coverage'
                     test -s backend/coverage/lcov.info
-                    echo "Coverage report generated successfully."
                 '''
             }
         }
@@ -68,18 +66,12 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    echo "Running frontend tests and generating coverage..."
-
                     mkdir -p frontend/coverage
-
                     docker run --rm \
-                        -v "$WORKSPACE/frontend:/app" \
-                        -w /app \
-                        node:22-alpine \
-                        sh -lc 'rm -rf coverage && npm ci && npm test'
-
+                      -v "$WORKSPACE/frontend:/app" \
+                      -w /app node:22-alpine \
+                      sh -lc 'rm -rf coverage && npm ci && npm test'
                     test -s frontend/coverage/lcov.info
-                    echo "Frontend coverage report generated successfully."
                 '''
             }
         }
@@ -88,13 +80,11 @@ pipeline {
             steps {
                 script {
                     def scannerHome = tool 'SonarScanner'
-
                     withSonarQubeEnv('SonarQube') {
                         sh """
                             set -eu
                             test -s backend/coverage/lcov.info
                             test -s frontend/coverage/lcov.info
-
                             '${scannerHome}/bin/sonar-scanner' \
                               -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                               -Dsonar.projectName=${SONAR_PROJECT_KEY} \
@@ -109,8 +99,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    docker build --tag "$FRONTEND_IMAGE" frontend
-                    echo "Frontend image built successfully."
+                    docker build \
+                      -t "$FRONTEND_IMAGE:ci" \
+                      -t "$FRONTEND_IMAGE:build-$BUILD_NUMBER" \
+                      frontend
                 '''
             }
         }
@@ -119,8 +111,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    docker build --tag "$BACKEND_IMAGE" backend
-                    echo "Backend image built successfully."
+                    docker build \
+                      -t "$BACKEND_IMAGE:ci" \
+                      -t "$BACKEND_IMAGE:build-$BUILD_NUMBER" \
+                      backend
                 '''
             }
         }
@@ -129,11 +123,8 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        "$FRONTEND_IMAGE"
-                    echo "Frontend security scan passed."
+                    trivy image --severity HIGH,CRITICAL --exit-code 1 \
+                      "$FRONTEND_IMAGE:build-$BUILD_NUMBER"
                 '''
             }
         }
@@ -142,11 +133,77 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        "$BACKEND_IMAGE"
-                    echo "Backend security scan passed."
+                    trivy image --severity HIGH,CRITICAL --exit-code 1 \
+                      "$BACKEND_IMAGE:build-$BUILD_NUMBER"
+                '''
+            }
+        }
+
+        stage('ECR Authentication') {
+            steps {
+                sh '''
+                    set -eu
+                    aws ecr get-login-password --region "$AWS_REGION" |
+                      docker login --username AWS --password-stdin "$ECR_REGISTRY"
+                '''
+            }
+        }
+
+        stage('Push Images to ECR') {
+            steps {
+                sh '''
+                    set -eu
+
+                    for IMAGE in "$FRONTEND_IMAGE" "$BACKEND_IMAGE"; do
+                        docker tag "$IMAGE:build-$BUILD_NUMBER" \
+                          "$ECR_REGISTRY/$IMAGE:build-$BUILD_NUMBER"
+                        docker tag "$IMAGE:ci" \
+                          "$ECR_REGISTRY/$IMAGE:ci"
+
+                        docker push "$ECR_REGISTRY/$IMAGE:build-$BUILD_NUMBER"
+                        docker push "$ECR_REGISTRY/$IMAGE:ci"
+                    done
+
+                    echo "Frontend and backend images pushed to ECR."
+                '''
+            }
+        }
+
+        stage('Deploy to Amazon EKS') {
+            steps {
+                sh '''
+                    set -eu
+
+                    aws eks update-kubeconfig \
+                      --region "$AWS_REGION" \
+                      --name "$EKS_CLUSTER"
+
+                    kubectl set image deployment/blog-frontend \
+                      frontend="$ECR_REGISTRY/$FRONTEND_IMAGE:build-$BUILD_NUMBER" \
+                      -n default
+
+                    kubectl set image deployment/blog-backend \
+                      backend="$ECR_REGISTRY/$BACKEND_IMAGE:build-$BUILD_NUMBER" \
+                      -n default
+                '''
+            }
+        }
+
+        stage('Verify EKS Rollout') {
+            steps {
+                sh '''
+                    set -eu
+
+                    kubectl rollout status deployment/blog-frontend \
+                      -n default --timeout=300s
+
+                    kubectl rollout status deployment/blog-backend \
+                      -n default --timeout=300s
+
+                    kubectl get deployments -n default
+                    kubectl get pods -n default -o wide
+
+                    echo "EKS rollout validation completed."
                 '''
             }
         }
@@ -154,19 +211,16 @@ pipeline {
 
     post {
         success {
-            echo 'SUCCESS: Tests, coverage, SonarQube analysis, Docker builds and Trivy scans completed.'
+            echo 'SUCCESS: CI, security scans, ECR push and EKS deployment completed.'
         }
-
         failure {
             echo 'FAILED: Check the first failed stage in Console Output.'
         }
-
         aborted {
-            echo 'Build was aborted before all stages completed.'
+            echo 'Build was aborted before completion.'
         }
-
         always {
-            echo 'Project04 CI pipeline execution finished.'
+            echo 'Project04 CI/CD pipeline execution finished.'
         }
     }
 }
